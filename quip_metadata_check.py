@@ -91,7 +91,8 @@ def main(argv):
     for idx in duplicate_rows:
         pf.at[idx-1,"row_status"] = "duplicate_row"
     for idx, row in pf.iterrows():
-        pf.at[idx,"file_uuid"] = str(uuid.uuid1())
+        filename, file_extension = path.splitext(row["path"])
+        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
     
     all_log["error_log"]   = error_log
     all_log["warning_log"] = warning_log
