@@ -1,1 +1,1 @@
-# quip_metadata_check
+Run check on metadata files.
