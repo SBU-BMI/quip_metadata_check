@@ -30,11 +30,17 @@ def check_duplicate_rows(pf):
             duplicate_rows.append(idx+1)
     return duplicate_rows
 
+parser = argparse.ArgumentParser(description="Metadata checker.")
+parser.add_argument("--inpmeta",nargs="?",default="manifest.csv",type=str,help="input manifest (metadata) file.")
+parser.add_argument("--outmeta",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
+parser.add_argument("--errfile",nargs="?",default="quip_manifest_error_log.json",type=str,help="error log file.")
+parser.add_argument("--inpdir",nargs="?",default="/data/images",type=str,help="input folder.")
+
 def main(args):
-    inp_folder     = args.dir 
-    inp_manifest   = args.inp 
-    out_error_json = args.err 
-    out_manifest   = args.out
+    inp_folder     = args.inpdir 
+    inp_manifest   = args.inpmeta 
+    out_error_json = args.errfile 
+    out_manifest   = args.outmeta
 
     # error and warning log
     all_log = {}
@@ -105,13 +111,6 @@ def main(args):
     out_csv.close()
     sys.exit(0)
 
-parser = argparse.ArgumentParser(description="Metadata checker.")
-parser.add_argument("--inp",nargs="?",default="manifest.csv",type=str,help="input manifest (metadata) file.")
-parser.add_argument("--out",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
-parser.add_argument("--err",nargs="?",default="quip_manifest_error_log.json",type=str,help="error log file.")
-parser.add_argument("--dir",nargs="?",default="/data/images",type=str,help="input folder.")
-
 if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:]);
     main(args)
-
