@@ -3,6 +3,7 @@ import pandas as pd
 import sys
 import uuid
 from os import path
+import argparse
 
 required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
 def check_required_columns(pf):
@@ -29,73 +30,73 @@ def check_duplicate_rows(pf):
             duplicate_rows.append(idx+1)
     return duplicate_rows
 
-def main(argv):
-    inp_folder   = "/data/images"
-    inp_manifest = "manifest.csv"
-    out_error_json = "quip_error_log.json"
-    if len(argv)==1:
-       inp_manifest = argv[0]
-    out_manifest = "quip_" + inp_manifest
+def main(args):
+    inp_folder     = args.dir 
+    inp_manifest   = args.inp 
+    out_error_json = args.err 
+    out_manifest   = args.out
 
-    out_json = open(inp_folder + "/" + out_error_json,"w");
-    all_log     = {}
-    error_log   = []
-    warning_log = []
-    if not path.exists(inp_folder + "/" + inp_manifest):
+    # error and warning log
+    all_log = {}
+    all_log["error"] = []
+    all_log["warning"] = []
+    out_json = open(inp_folder + "/" + out_error_json,mode="w");
+    try:
+        finp = open(inp_folder+"/"+inp_manifest,mode="r")
+    except OSError:
         ierr = {}
         ierr["error_code"] = 1
         ierr["error_msg"] = "input manifest file does not exist."
-        error_log.append(ierr)
-        all_log["error_log"]   = error_log
-        all_log["warning_log"] = warning_log
+        all_log["error"].append(ierr)
         json.dump(all_log,out_json)
         out_json.close()
         sys.exit(1)
-    
-    finp = open(inp_folder+"/"+inp_manifest)
     pf = pd.read_csv(finp,sep=',')
-    
-    pf["row_status"] = "ok"
-    pf["file_uuid"]  = ""
+   
+    # Check if required columns are missing
     missing_columns = check_required_columns(pf)
     if len(missing_columns)!=0:
         ierr = {}
         ierr["error_code"] = 2
-        ierr["error_msg"]  = "missing required columns."
+        ierr["error_msg"] = "missing required columns."
         ierr["missing_columns"] = missing_columns
-        error_log.append(ierr)
-        all_log["error_log"]   = error_log
-        all_log["warning_log"] = warning_log
+        all_log["error"].append(ierr)
         json.dump(all_log,out_json)
         out_json.close()
         sys.exit(2)
-    
+   
+    # Check rows missing values
     rows_missing_values = check_rows_missing_values(pf)
     if len(rows_missing_values)!=0:
         iwarn = {}
-        iwarn["warning_code"] = 1
-        iwarn["warning_msg"]  = "rows missing values."
+        iwarn["error_code"] = 1
+        iwarn["error_msg"] = "rows missing values."
         iwarn["rows_missing_values"] = rows_missing_values
-        warning_log.append(iwarn)
-        all_log["warning_log"] = warning_log
+        all_log["error"].append(iwarn)
+
+    # Check for duplicate rows
     duplicate_rows = check_duplicate_rows(pf)
-    if len(duplicate_rows)!=0:
+    if len(duplicate_rows)!=0: 
         iwarn = {}
         iwarn["warning_code"] = 1
-        iwarn["warning_msg"]  = "duplicate_rows"
+        iwarn["warning_msg"] = "duplicate_rows"
         iwarn["duplicate_rows"] = duplicate_rows
-        warning_log.append(iwarn)
-        all_log["warning_log"] = warning_log
+        all_log["warning"].append(iwarn)
+
+    # Store row wise status
+    pf["row_status"] = "ok"
+    pf["file_uuid"]  = ""
     for idx in rows_missing_values:
-        pf.at[idx-1,"row_status"] = "missing_value"
-    for idx in duplicate_rows:
-        pf.at[idx-1,"row_status"] = "duplicate_row"
+        pf.at[idx-1,"row_status"] = "missing_values"
+    for idx in duplicate_rows: 
+        if pf["row_status"][idx-1]=="ok": 
+            pf.at[idx-1,"row_status"] = "duplicate_row" 
+        else: 
+            pf.at[idx-1,"row_status"] = pf["row_status"][idx-1]+";duplicate_row"
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
         pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
     
-    all_log["error_log"]   = error_log
-    all_log["warning_log"] = warning_log
     json.dump(all_log,out_json)
     out_json.close()
     
@@ -104,6 +105,13 @@ def main(argv):
     out_csv.close()
     sys.exit(0)
 
+parser = argparse.ArgumentParser(description="Metadata checker.")
+parser.add_argument("--inp",nargs="?",default="manifest.csv",type=str,help="input manifest (metadata) file.")
+parser.add_argument("--out",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
+parser.add_argument("--err",nargs="?",default="quip_manifest_error_log.json",type=str,help="error log file.")
+parser.add_argument("--dir",nargs="?",default="/data/images",type=str,help="input folder.")
+
 if __name__ == "__main__":
-   main(sys.argv[1:])
+    args = parser.parse_args(sys.argv[1:]);
+    main(args)
 
