@@ -37,27 +37,27 @@ parser.add_argument("--errfile",nargs="?",default="quip_manifest_error_log.json"
 parser.add_argument("--inpdir",nargs="?",default="/data/images",type=str,help="input folder.")
 
 def main(args):
-    inp_folder     = args.inpdir 
-    inp_manifest   = args.inpmeta 
-    out_error_json = args.errfile 
-    out_manifest   = args.outmeta
+    inp_folder = args.inpdir 
+    inp_manifest_fname = args.inpmeta 
+    out_error_fname = args.errfile 
+    out_manifest_fname = args.outmeta
 
     # error and warning log
     all_log = {}
     all_log["error"] = []
     all_log["warning"] = []
-    out_json = open(inp_folder + "/" + out_error_json,mode="w");
+    out_error_fd = open(inp_folder + "/" + out_error_fname,mode="w");
     try:
-        finp = open(inp_folder+"/"+inp_manifest,mode="r")
+        inp_metadata_fd = open(inp_folder+"/"+inp_manifest_fname,mode="r")
     except OSError:
         ierr = {}
         ierr["error_code"] = 1
         ierr["error_msg"] = "input manifest file does not exist."
         all_log["error"].append(ierr)
-        json.dump(all_log,out_json)
-        out_json.close()
+        json.dump(all_log,out_error_fd)
+        out_error_fd.close()
         sys.exit(1)
-    pf = pd.read_csv(finp,sep=',')
+    pf = pd.read_csv(inp_metadata_fd,sep=',')
    
     # Check if required columns are missing
     missing_columns = check_required_columns(pf)
@@ -67,8 +67,9 @@ def main(args):
         ierr["error_msg"] = "missing required columns."
         ierr["missing_columns"] = missing_columns
         all_log["error"].append(ierr)
-        json.dump(all_log,out_json)
-        out_json.close()
+        json.dump(all_log,out_error_fd)
+        out_error_fd.close()
+        inp_metadata_fd.close()
         sys.exit(2)
    
     # Check rows missing values
@@ -103,12 +104,16 @@ def main(args):
         filename, file_extension = path.splitext(row["path"])
         pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
     
-    json.dump(all_log,out_json)
-    out_json.close()
+    json.dump(all_log,out_error_fd)
+    out_error_fd.close()
     
-    out_csv = open(inp_folder+"/"+out_manifest,mode="w")
-    pf.to_csv(out_csv,index=False)
-    out_csv.close()
+    out_metadata_fd = open(inp_folder+"/"+out_manifest_fname,mode="w")
+    pf.to_csv(out_metadata_fd,index=False)
+
+    inp_metadata_fd.close()
+    out_error_fd.close()
+    out_metadata_fd.close()
+
     sys.exit(0)
 
 if __name__ == "__main__":
