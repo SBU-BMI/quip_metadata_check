@@ -6,12 +6,12 @@ from os import path
 import argparse
 
 error_info = {}
-error_info["no_error"] = { "code":"0", "msg":"no-error" }
-error_info["missing_file"] = { "code":"101", "msg":"input-file-missing" }
-error_info["missing_values"] = { "code":"102", "msg":"missing-values" }
-error_info["duplicate_rows"] = { "code":"103", "msg":"duplicate-rows" }
-error_info["file_format"] = { "code":"104", "msg":"file-format-error" }
-error_info["missing_columns"] = { "code":"105", "msg":"missing-columns" }
+error_info["no_error"] = { "code":0, "msg":"no-error" }
+error_info["missing_file"] = { "code":101, "msg":"input-file-missing" }
+error_info["missing_values"] = { "code":102, "msg":"missing-values" }
+error_info["duplicate_rows"] = { "code":103, "msg":"duplicate-rows" }
+error_info["file_format"] = { "code":104, "msg":"file-format-error" }
+error_info["missing_columns"] = { "code":105, "msg":"missing-columns" }
 
 required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
 def check_required_columns(pf):
@@ -90,18 +90,18 @@ def main(args):
         all_log["warning"].append(ierr)
 
     # Store row wise status
-    pf["error_code"] = error_info["no_error"]["code"]
+    pf["error_code"] = str(error_info["no_error"]["code"])
     pf["error_msg"]  = error_info["no_error"]["msg"]
     pf["file_uuid"]  = ""
     for idx in rows_missing_values:
-        pf.at[idx-1,"error_code"] = error_info["missing_values"]["code"]
+        pf.at[idx-1,"error_code"] = str(error_info["missing_values"]["code"])
         pf.at[idx-1,"error_msg"]  = error_info["missing_values"]["msg"]
     for idx in duplicate_rows: 
-        if pf["error_code"][idx-1]==error_info["no_error"]["code"]: 
-            pf.at[idx-1,"error_code"] = error_info["duplicate_rows"]["code"]
+        if str(pf["error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"error_code"] = str(error_info["duplicate_rows"]["code"])
             pf.at[idx-1,"error_msg"]  = error_info["duplicate_rows"]["msg"]
         else: 
-            pf.at[idx-1,"error_code"] = pf["error_code"][idx-1]+";"+error_info["duplicate_rows"]["code"]
+            pf.at[idx-1,"error_code"] = str(pf["error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
             pf.at[idx-1,"error_msg"]  = pf["error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
