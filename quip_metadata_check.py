@@ -5,6 +5,14 @@ import uuid
 from os import path
 import argparse
 
+error_info = {}
+error_info["no_error"] = { "code":"0", "msg":"no-error" }
+error_info["missing_file"] = { "code":"101", "msg":"input-file-missing" }
+error_info["missing_values"] = { "code":"102", "msg":"missing-values" }
+error_info["duplicate_rows"] = { "code":"103", "msg":"duplicate-rows" }
+error_info["file_format"] = { "code":"104", "msg":"file-format-error" }
+error_info["missing_columns"] = { "code":"105", "msg":"missing-columns" }
+
 required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
 def check_required_columns(pf):
     missing_columns = []
@@ -50,10 +58,7 @@ def main(args):
     try:
         inp_metadata_fd = open(inp_folder+"/"+inp_manifest_fname,mode="r")
     except OSError:
-        ierr = {}
-        ierr["error_code"] = 1
-        ierr["error_msg"] = "input manifest file does not exist."
-        all_log["error"].append(ierr)
+        all_log["error"].append(error_info["missing_file"])
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
         sys.exit(1)
@@ -62,10 +67,8 @@ def main(args):
     # Check if required columns are missing
     missing_columns = check_required_columns(pf)
     if len(missing_columns)!=0:
-        ierr = {}
-        ierr["error_code"] = 2
-        ierr["error_msg"] = "missing required columns."
-        ierr["missing_columns"] = missing_columns
+        ierr = error_info["missing_columns"];
+        ierr["missing_columns"] = missing_columns 
         all_log["error"].append(ierr)
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
@@ -75,31 +78,31 @@ def main(args):
     # Check rows missing values
     rows_missing_values = check_rows_missing_values(pf)
     if len(rows_missing_values)!=0:
-        iwarn = {}
-        iwarn["error_code"] = 1
-        iwarn["error_msg"] = "rows missing values."
-        iwarn["rows_missing_values"] = rows_missing_values
-        all_log["error"].append(iwarn)
+        ierr = error_info["missing_values"];
+        ierr["missing_values"] = rows_missing_values 
+        all_log["error"].append(ierr)
 
     # Check for duplicate rows
     duplicate_rows = check_duplicate_rows(pf)
     if len(duplicate_rows)!=0: 
-        iwarn = {}
-        iwarn["warning_code"] = 1
-        iwarn["warning_msg"] = "duplicate_rows"
-        iwarn["duplicate_rows"] = duplicate_rows
-        all_log["warning"].append(iwarn)
+        ierr = error_info["duplicate_rows"];
+        ierr["duplicate_rows"] = duplicate_rows
+        all_log["warning"].append(ierr)
 
     # Store row wise status
-    pf["row_status"] = "ok"
+    pf["error_code"] = error_info["no_error"]["code"]
+    pf["error_msg"]  = error_info["no_error"]["msg"]
     pf["file_uuid"]  = ""
     for idx in rows_missing_values:
-        pf.at[idx-1,"row_status"] = "missing_values"
+        pf.at[idx-1,"error_code"] = error_info["missing_values"]["code"]
+        pf.at[idx-1,"error_msg"]  = error_info["missing_values"]["msg"]
     for idx in duplicate_rows: 
-        if pf["row_status"][idx-1]=="ok": 
-            pf.at[idx-1,"row_status"] = "duplicate_row" 
+        if pf["error_code"][idx-1]==error_info["no_error"]["code"]: 
+            pf.at[idx-1,"error_code"] = error_info["duplicate_rows"]["code"]
+            pf.at[idx-1,"error_msg"]  = error_info["duplicate_rows"]["msg"]
         else: 
-            pf.at[idx-1,"row_status"] = pf["row_status"][idx-1]+";duplicate_row"
+            pf.at[idx-1,"error_code"] = pf["error_code"][idx-1]+";"+error_info["duplicate_rows"]["code"]
+            pf.at[idx-1,"error_msg"]  = pf["error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
         pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
