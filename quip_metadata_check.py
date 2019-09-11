@@ -41,7 +41,7 @@ def check_duplicate_rows(pf):
 parser = argparse.ArgumentParser(description="Metadata checker.")
 parser.add_argument("--inpmeta",nargs="?",default="manifest.csv",type=str,help="input manifest (metadata) file.")
 parser.add_argument("--outmeta",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
-parser.add_argument("--errfile",nargs="?",default="quip_manifest_error_log.json",type=str,help="error log file.")
+parser.add_argument("--errfile",nargs="?",default="quip_wsi_error_log.json",type=str,help="error log file.")
 parser.add_argument("--inpdir",nargs="?",default="/data/images",type=str,help="input folder.")
 
 def main(args):
