@@ -13,15 +13,15 @@ error_info["duplicate_rows"] = { "code":103, "msg":"duplicate-rows" }
 error_info["file_format"] = { "code":104, "msg":"file-format-error" }
 error_info["missing_columns"] = { "code":105, "msg":"missing-columns" }
 
-required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
-def check_required_columns(pf):
+# required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
+def check_required_columns(pf,required_columns):
     missing_columns = []
     for x in required_columns:
         if x not in pf.columns:
             missing_columns.append(x)
     return missing_columns
 
-def check_rows_missing_values(pf):
+def check_rows_missing_values(pf,required_columns):
     rows_missing_values = []
     for idx,row in pf.iterrows():
         for c in required_columns:
@@ -43,12 +43,14 @@ parser.add_argument("--inpmeta",nargs="?",default="manifest.csv",type=str,help="
 parser.add_argument("--outmeta",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
 parser.add_argument("--errfile",nargs="?",default="quip_wsi_error_log.json",type=str,help="error log file.")
 parser.add_argument("--inpdir",nargs="?",default="/data/images",type=str,help="input folder.")
+parser.add_argument("--cfgfile",nargs="?",default="config.json",type=str,help="config for required columns, etc.")
 
 def main(args):
     inp_folder = args.inpdir 
     inp_manifest_fname = args.inpmeta 
     out_error_fname = args.errfile 
     out_manifest_fname = args.outmeta
+    cfg_fname = args.cfgfile
 
     # error and warning log
     all_log = {}
@@ -62,10 +64,24 @@ def main(args):
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
         sys.exit(1)
+
+    # read config file
+    try: 
+        cfg_file_fd = open(cfg_fname,mode="r")
+    except OSError:
+        all_log["error"].append(error_info["missing_file"])
+        json.dump(all_log,out_error_fd)
+        out_error_fd.close()
+        sys.exit(1)
+    cfg_data = cfg_file_fd.read()
+    cfg_json = json.loads(cfg_data)
+    print(cfg_json)
+    required_columns = cfg_json['required_columns']
+
     pf = pd.read_csv(inp_metadata_fd,sep=',')
    
     # Check if required columns are missing
-    missing_columns = check_required_columns(pf)
+    missing_columns = check_required_columns(pf,required_columns)
     if len(missing_columns)!=0:
         ierr = error_info["missing_columns"];
         ierr["missing_columns"] = missing_columns 
@@ -76,7 +92,7 @@ def main(args):
         sys.exit(2)
    
     # Check rows missing values
-    rows_missing_values = check_rows_missing_values(pf)
+    rows_missing_values = check_rows_missing_values(pf,required_columns)
     if len(rows_missing_values)!=0:
         ierr = error_info["missing_values"];
         ierr["missing_values"] = rows_missing_values 
