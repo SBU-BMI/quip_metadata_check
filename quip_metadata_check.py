@@ -12,14 +12,26 @@ error_info["missing_values"] = { "code":102, "msg":"missing-values" }
 error_info["duplicate_rows"] = { "code":103, "msg":"duplicate-rows" }
 error_info["file_format"] = { "code":104, "msg":"file-format-error" }
 error_info["missing_columns"] = { "code":105, "msg":"missing-columns" }
+error_info["column_lengths"] = { "code":106, "msg":"column-lengths" }
 
-# required_columns = ["path","studyid","clinicaltrialsubjectid","imageid"]
 def check_required_columns(pf,required_columns):
     missing_columns = []
     for x in required_columns:
         if x not in pf.columns:
             missing_columns.append(x)
     return missing_columns
+
+def check_column_lengths(pf,required_columns,column_lengths): 
+    problem_rows = []
+    for idx,row in pf.iterrows():
+        for c in required_columns:
+            if column_lengths[c]>0 and pd.isna(row[c])==False: 
+                if len(str(row[c]))>column_lengths[c]:
+                    p = {}
+                    p["column_name"] = c
+                    p["row_id"] = idx+1
+                    problem_rows.append(p)
+    return problem_rows
 
 def check_rows_missing_values(pf,required_columns):
     rows_missing_values = []
@@ -77,6 +89,10 @@ def main(args):
     cfg_json = json.loads(cfg_data)
     print(cfg_json)
     required_columns = cfg_json['required_columns']
+    column_lens  = cfg_json['column_lengths']
+    column_lengths = {}
+    for i in range(len(required_columns)):
+        column_lengths[required_columns[i]] = column_lens[i]
 
     pf = pd.read_csv(inp_metadata_fd,sep=',')
    
@@ -90,6 +106,13 @@ def main(args):
         out_error_fd.close()
         inp_metadata_fd.close()
         sys.exit(2)
+
+    # Check if column values are shorter than max length allowed
+    problem_rows = check_column_lengths(pf,required_columns,column_lengths)
+    if len(problem_rows)!=0:
+        ierr = error_info["column_lengths"]
+        ierr["column_lengths"] = problem_rows
+        all_log["error"].append(ierr)
    
     # Check rows missing values
     rows_missing_values = check_rows_missing_values(pf,required_columns)
@@ -112,6 +135,14 @@ def main(args):
     for idx in rows_missing_values:
         pf.at[idx-1,"error_code"] = str(error_info["missing_values"]["code"])
         pf.at[idx-1,"error_msg"]  = error_info["missing_values"]["msg"]
+    for idx in range(len(problem_rows)):
+        idx = problem_rows[idx]["row_id"];
+        if str(pf["error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"error_code"] = str(error_info["column_lengths"]["code"]) 
+            pf.at[idx-1,"error_msg"]  = error_info["column_lengths"]["msg"]
+        else:
+            pf.at[idx-1,"error_code"] = str(pf["error_code"][idx-1])+";"+str(error_info["collumn_lengths"]["code"])
+            pf.at[idx-1,"error_msg"]  = pf["error_msg"][idx-1]+";"+error_info["collumn_lengths"]["msg"]
     for idx in duplicate_rows: 
         if str(pf["error_code"][idx-1])==str(error_info["no_error"]["code"]): 
             pf.at[idx-1,"error_code"] = str(error_info["duplicate_rows"]["code"])

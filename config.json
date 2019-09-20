@@ -1,3 +1,4 @@
 {
-	"required_columns": ["path","studyid","clinicaltrialsubjectid","imageid"]
+	"required_columns": ["path","studyid","clinicaltrialsubjectid","imageid"],
+	"column_lengths": [-1,16,64,16]
 }
