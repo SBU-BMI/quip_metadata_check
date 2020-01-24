@@ -129,27 +129,27 @@ def main(args):
         all_log["warning"].append(ierr)
 
     # Store row wise status
-    pf["error_code"] = str(error_info["no_error"]["code"])
-    pf["error_msg"]  = error_info["no_error"]["msg"]
+    pf["manifest_error_code"] = str(error_info["no_error"]["code"])
+    pf["manifest_error_msg"]  = error_info["no_error"]["msg"]
     pf["file_uuid"]  = ""
     for idx in rows_missing_values:
-        pf.at[idx-1,"error_code"] = str(error_info["missing_values"]["code"])
-        pf.at[idx-1,"error_msg"]  = error_info["missing_values"]["msg"]
+        pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_values"]["code"])
+        pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_values"]["msg"]
     for idx in range(len(problem_rows)):
         idx = problem_rows[idx]["row_id"];
-        if str(pf["error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"error_code"] = str(error_info["column_lengths"]["code"]) 
-            pf.at[idx-1,"error_msg"]  = error_info["column_lengths"]["msg"]
+        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"manifest_error_code"] = str(error_info["column_lengths"]["code"]) 
+            pf.at[idx-1,"manifest_error_msg"]  = error_info["column_lengths"]["msg"]
         else:
-            pf.at[idx-1,"error_code"] = str(pf["error_code"][idx-1])+";"+str(error_info["collumn_lengths"]["code"])
-            pf.at[idx-1,"error_msg"]  = pf["error_msg"][idx-1]+";"+error_info["collumn_lengths"]["msg"]
+            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["collumn_lengths"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["collumn_lengths"]["msg"]
     for idx in duplicate_rows: 
-        if str(pf["error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"error_code"] = str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"error_msg"]  = error_info["duplicate_rows"]["msg"]
+        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"manifest_error_code"] = str(error_info["duplicate_rows"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = error_info["duplicate_rows"]["msg"]
         else: 
-            pf.at[idx-1,"error_code"] = str(pf["error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"error_msg"]  = pf["error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
+            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
         pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
