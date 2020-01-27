@@ -132,6 +132,7 @@ def main(args):
     pf["manifest_error_code"] = str(error_info["no_error"]["code"])
     pf["manifest_error_msg"]  = error_info["no_error"]["msg"]
     pf["file_uuid"]  = ""
+    pf["file_ext"]   = ""
     for idx in rows_missing_values:
         pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_values"]["code"])
         pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_values"]["msg"]
@@ -152,7 +153,8 @@ def main(args):
             pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
-        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) # + file_extension
+        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
+        pf.at[idx,"file_ext"] = str(file_extension)
     
     json.dump(all_log,out_error_fd)
     out_error_fd.close()
