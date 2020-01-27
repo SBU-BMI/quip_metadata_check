@@ -152,7 +152,7 @@ def main(args):
             pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
-        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) + file_extension
+        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) # + file_extension
     
     json.dump(all_log,out_error_fd)
     out_error_fd.close()
