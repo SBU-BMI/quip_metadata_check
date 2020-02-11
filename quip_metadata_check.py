@@ -194,15 +194,15 @@ def process_single_slide(args):
     all_log["error"] = []
     all_log["warning"] = []
     return_msg = {}
-    return_msg["status"] = all_log
-    return_msg["output"] = {}
+    return_msg["status"] = json.dumps(all_log)
+    return_msg["output"] = json.dumps({})
 
     # read config file
     try: 
         cfg_file_fd = open(cfg_fname,mode="r")
     except OSError:
         all_log["error"].append(error_info["missing_file"])
-        return_msg["status"] = all_log
+        return_msg["status"] = json.dumps(all_log)
         print(return_msg)
         sys.exit(1)
     cfg_data = cfg_file_fd.read()
@@ -225,7 +225,7 @@ def process_single_slide(args):
         ierr = error_info["missing_columns"];
         ierr["missing_columns"] = missing_columns 
         all_log["error"].append(ierr)
-        return_msg["status"] = all_log
+        return_msg["status"] = json.dumps(all_log)
         print(return_msg)
         sys.exit(2)
 
@@ -281,8 +281,8 @@ def process_single_slide(args):
             pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
         pf.at[idx,"file_ext"] = str(file_extension)
     
-    return_msg["status"] = all_log
-    return_msg["output"] = pf.to_dict(orient='records')
+    return_msg["status"] = json.dumps(all_log)
+    return_msg["output"] = json.dumps(pf.to_dict(orient='records'))
     print(return_msg)
     return 0
 
