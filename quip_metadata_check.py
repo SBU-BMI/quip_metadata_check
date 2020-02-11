@@ -194,8 +194,8 @@ def process_single_slide(args):
     all_log["error"] = []
     all_log["warning"] = []
     return_msg = {}
-    return_msg["status"] = ""
-    return_msg["output"] = ""
+    return_msg["status"] = all_log
+    return_msg["output"] = {}
 
     # read config file
     try: 
