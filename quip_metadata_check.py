@@ -2,6 +2,7 @@ import json
 import pandas as pd
 import sys
 import uuid
+import hashlib
 from os import path
 import argparse
 
@@ -37,7 +38,7 @@ def check_rows_missing_values(pf,required_columns):
     rows_missing_values = []
     for idx,row in pf.iterrows():
         for c in required_columns:
-            if pd.isna(row[c]):
+            if row[c].strip()=="" or pd.isna(row[c]):
                 rows_missing_values.append(idx+1)
                 break;
     return rows_missing_values
@@ -50,12 +51,21 @@ def check_duplicate_rows(pf):
             duplicate_rows.append(idx+1)
     return duplicate_rows
 
+def compute_md5(fname):
+    md5h = hashlib.md5()
+    with open(fname,"rb") as f:
+         for byte_block in iter(lambda: f.read(4096),b""):
+             md5h.update(byte_block)
+    return md5h.hexdigest()
+
 parser = argparse.ArgumentParser(description="Metadata checker.")
 parser.add_argument("--inpmeta",nargs="?",default="manifest.csv",type=str,help="input manifest (metadata) file.")
 parser.add_argument("--outmeta",nargs="?",default="quip_manifest.csv",type=str,help="output manifest (metadata) file.")
 parser.add_argument("--errfile",nargs="?",default="quip_wsi_error_log.json",type=str,help="error log file.")
 parser.add_argument("--inpdir",nargs="?",default="/data/images",type=str,help="input folder.")
 parser.add_argument("--cfgfile",nargs="?",default="config.json",type=str,help="config for required columns, etc.")
+parser.add_argument("--md5",nargs="?",default="y",type=str,help="compute md5 instead of uuid.")
+parser.add_argument("--slide",nargs="?",default="",type=str,help="one slide to check.")
 
 def main(args):
     inp_folder = args.inpdir 
@@ -63,6 +73,8 @@ def main(args):
     out_error_fname = args.errfile 
     out_manifest_fname = args.outmeta
     cfg_fname = args.cfgfile
+    md5_check = args.md5
+    inp_slide = args.slide
 
     # error and warning log
     all_log = {}
@@ -94,7 +106,15 @@ def main(args):
     for i in range(len(required_columns)):
         column_lengths[required_columns[i]] = column_lens[i]
 
-    pf = pd.read_csv(inp_metadata_fd,sep=',')
+    inp_json = {} 
+    pf = None
+    if inp_slide!="":
+        r_json = json.loads(inp_slide)
+        for item in r_json:
+            inp_json[item] = [r_json[item]]
+        pf = pd.DataFrame.from_dict(inp_json)
+    else:
+        pf = pd.read_csv(inp_metadata_fd,sep=',')
    
     # Check if required columns are missing
     missing_columns = check_required_columns(pf,required_columns)
@@ -153,14 +173,21 @@ def main(args):
             pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
         filename, file_extension = path.splitext(row["path"])
-        pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
+        if md5_check=='y':
+            pf.at[idx,"file_uuid"] = compute_md5(inp_folder+"/"+row["path"])
+        else:
+            pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
         pf.at[idx,"file_ext"] = str(file_extension)
     
     json.dump(all_log,out_error_fd)
     out_error_fd.close()
-    
-    out_metadata_fd = open(inp_folder+"/"+out_manifest_fname,mode="w")
-    pf.to_csv(out_metadata_fd,index=False)
+
+    if path.exists(inp_folder+"/"+out_manifest_fname): 
+       out_metadata_fd = open(inp_folder+"/"+out_manifest_fname,mode="a")
+       pf.to_csv(out_metadata_fd,mode="a",index=False,header=False)
+    else: 
+       out_metadata_fd = open(inp_folder+"/"+out_manifest_fname,mode="w")
+       pf.to_csv(out_metadata_fd,index=False)
 
     inp_metadata_fd.close()
     out_error_fd.close()
