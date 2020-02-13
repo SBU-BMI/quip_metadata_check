@@ -216,7 +216,10 @@ def process_single_slide(args):
     inp_json = {} 
     r_json = json.loads(inp_slide)
     for item in r_json:
-        inp_json[item] = [r_json[item]]
+        if type(r_json[item]) is list: 
+            inp_json[item] = r_json[item]
+        else: 
+            inp_json[item] = [r_json[item]]
     pf = pd.DataFrame.from_dict(inp_json)
    
     # Check if required columns are missing
@@ -280,10 +283,19 @@ def process_single_slide(args):
         else:
             pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
         pf.at[idx,"file_ext"] = str(file_extension)
+
+    one_row = pd.DataFrame(columns=pf.columns)
+    for idx, row in pf.iterrows():
+        one_row.loc[0] = pf.loc[idx] 
+        file_uuid = pf.at[idx,"file_uuid"] 
+        out_metadata_fd = open(inp_folder+"/"+file_uuid+"_"+out_manifest_fname,mode="w")
+        one_row.to_csv(out_metadata_fd,index=False)
+        out_metadata_fd.close()
     
     return_msg["status"] = json.dumps(all_log)
     return_msg["output"] = json.dumps(pf.to_dict(orient='records'))
     print(return_msg)
+    
     return 0
 
 def main(args):
