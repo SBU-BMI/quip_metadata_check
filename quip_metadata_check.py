@@ -8,7 +8,7 @@ import argparse
 
 error_info = {}
 error_info["no_error"] = { "code":0, "msg":"no-error" }
-error_info["missing_file"] = { "code":101, "msg":"input-file-missing" }
+error_info["missing_files"] = { "code":101, "msg":"input-file-missing" }
 error_info["missing_values"] = { "code":102, "msg":"missing-values" }
 error_info["duplicate_rows"] = { "code":103, "msg":"duplicate-rows" }
 error_info["file_format"] = { "code":104, "msg":"file-format-error" }
@@ -51,6 +51,81 @@ def check_duplicate_rows(pf):
             duplicate_rows.append(idx+1)
     return duplicate_rows
 
+def check_rows_missing_files(pf,inp_folder):
+    rows_missing_files = []
+    for idx,row in pf.iterrows():
+        if path.exists(inp_folder+"/"+row["path"])==False:
+            rows_missing_files.append(idx+1)
+    return rows_missing_files
+
+def check_errors(pf,required_columns,column_lengths,inp_folder,all_log):
+    fatal_error = 0
+    # Check if required columns are missing
+    missing_columns = check_required_columns(pf,required_columns)
+    if len(missing_columns)!=0:
+        ierr = error_info["missing_columns"];
+        ierr["missing_columns"] = missing_columns 
+        all_log["error"].append(ierr)
+        fatal_error = 1
+        return fatal_error
+
+    # Check if column values are shorter than max length allowed
+    problem_rows = check_column_lengths(pf,required_columns,column_lengths)
+    if len(problem_rows)!=0:
+        ierr = error_info["column_lengths"]
+        ierr["column_lengths"] = problem_rows
+        all_log["error"].append(ierr)
+   
+    # Check rows missing values
+    rows_missing_values = check_rows_missing_values(pf,required_columns)
+    if len(rows_missing_values)!=0:
+        ierr = error_info["missing_values"];
+        ierr["missing_values"] = rows_missing_values 
+        all_log["error"].append(ierr)
+
+    # Check rows missing files
+    rows_missing_files = check_rows_missing_files(pf,inp_folder)
+    if len(rows_missing_files)!=0:
+        ierr = error_info["missing_files"];
+        ierr["missing_files"] = rows_missing_files 
+        all_log["error"].append(ierr)
+
+    # Check for duplicate rows
+    duplicate_rows = check_duplicate_rows(pf)
+    if len(duplicate_rows)!=0: 
+        ierr = error_info["duplicate_rows"];
+        ierr["duplicate_rows"] = duplicate_rows
+        all_log["warning"].append(ierr)
+
+    # Store row wise status
+    for idx in rows_missing_values:
+        pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_values"]["code"])
+        pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_values"]["msg"]
+    for idx in rows_missing_files:
+        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_files"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_files"]["msg"]
+        else:
+            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["missing_files"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["missing_files"]["msg"]
+    for idx in range(len(problem_rows)):
+        idx = problem_rows[idx]["row_id"];
+        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"manifest_error_code"] = str(error_info["column_lengths"]["code"]) 
+            pf.at[idx-1,"manifest_error_msg"]  = error_info["column_lengths"]["msg"]
+        else:
+            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["column_lengths"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["column_lengths"]["msg"]
+    for idx in duplicate_rows: 
+        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
+            pf.at[idx-1,"manifest_error_code"] = str(error_info["duplicate_rows"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = error_info["duplicate_rows"]["msg"]
+        else: 
+            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
+            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
+
+    return fatal_error
+
 def compute_md5(fname):
     md5h = hashlib.md5()
     with open(fname,"rb") as f:
@@ -83,7 +158,7 @@ def process_manifest_file(args):
     try: 
         inp_metadata_fd = open(inp_folder+"/"+inp_manifest_fname,mode="r")
     except OSError:
-        all_log["error"].append(error_info["missing_file"])
+        all_log["error"].append(error_info["missing_files"])
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
         sys.exit(1)
@@ -92,7 +167,7 @@ def process_manifest_file(args):
     try: 
         cfg_file_fd = open(cfg_fname,mode="r")
     except OSError:
-        all_log["error"].append(error_info["missing_file"])
+        all_log["error"].append(error_info["missing_files"])
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
         sys.exit(1)
@@ -105,69 +180,27 @@ def process_manifest_file(args):
         column_lengths[required_columns[i]] = column_lens[i]
 
     pf = pd.read_csv(inp_metadata_fd,sep=',')
-   
-    # Check if required columns are missing
-    missing_columns = check_required_columns(pf,required_columns)
-    if len(missing_columns)!=0:
-        ierr = error_info["missing_columns"];
-        ierr["missing_columns"] = missing_columns 
-        all_log["error"].append(ierr)
+    pf["manifest_error_code"] = str(error_info["no_error"]["code"])
+    pf["manifest_error_msg"]  = error_info["no_error"]["msg"]
+    pf["file_uuid"]  = ""
+    pf["file_ext"]   = ""
+
+    fatal_error = check_errors(pf,required_columns,column_lengths,inp_folder,all_log)
+    if fatal_error==1: 
         json.dump(all_log,out_error_fd)
         out_error_fd.close()
         inp_metadata_fd.close()
         sys.exit(2)
 
-    # Check if column values are shorter than max length allowed
-    problem_rows = check_column_lengths(pf,required_columns,column_lengths)
-    if len(problem_rows)!=0:
-        ierr = error_info["column_lengths"]
-        ierr["column_lengths"] = problem_rows
-        all_log["error"].append(ierr)
-   
-    # Check rows missing values
-    rows_missing_values = check_rows_missing_values(pf,required_columns)
-    if len(rows_missing_values)!=0:
-        ierr = error_info["missing_values"];
-        ierr["missing_values"] = rows_missing_values 
-        all_log["error"].append(ierr)
-
-    # Check for duplicate rows
-    duplicate_rows = check_duplicate_rows(pf)
-    if len(duplicate_rows)!=0: 
-        ierr = error_info["duplicate_rows"];
-        ierr["duplicate_rows"] = duplicate_rows
-        all_log["warning"].append(ierr)
-
-    # Store row wise status
-    pf["manifest_error_code"] = str(error_info["no_error"]["code"])
-    pf["manifest_error_msg"]  = error_info["no_error"]["msg"]
-    pf["file_uuid"]  = ""
-    pf["file_ext"]   = ""
-    for idx in rows_missing_values:
-        pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_values"]["code"])
-        pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_values"]["msg"]
-    for idx in range(len(problem_rows)):
-        idx = problem_rows[idx]["row_id"];
-        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"manifest_error_code"] = str(error_info["column_lengths"]["code"]) 
-            pf.at[idx-1,"manifest_error_msg"]  = error_info["column_lengths"]["msg"]
-        else:
-            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["collumn_lengths"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["collumn_lengths"]["msg"]
-    for idx in duplicate_rows: 
-        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"manifest_error_code"] = str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = error_info["duplicate_rows"]["msg"]
-        else: 
-            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
     for idx, row in pf.iterrows():
-        filename, file_extension = path.splitext(row["path"])
-        if md5_check=='y':
-            pf.at[idx,"file_uuid"] = compute_md5(inp_folder+"/"+row["path"])
-        else:
-            pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
-        pf.at[idx,"file_ext"] = str(file_extension)
+        error_codes = row["manifest_error_code"].split(";")
+        if str(error_info["missing_files"]["code"]) not in error_codes:
+            filename, file_extension = path.splitext(row["path"])
+            if md5_check=='y':
+                pf.at[idx,"file_uuid"] = compute_md5(inp_folder+"/"+row["path"])
+            else:
+                pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
+            pf.at[idx,"file_ext"] = str(file_extension)
     
     json.dump(all_log,out_error_fd)
     out_error_fd.close()
@@ -201,7 +234,7 @@ def process_single_slide(args):
     try: 
         cfg_file_fd = open(cfg_fname,mode="r")
     except OSError:
-        all_log["error"].append(error_info["missing_file"])
+        all_log["error"].append(error_info["missing_files"])
         return_msg["status"] = json.dumps(all_log)
         print(return_msg)
         sys.exit(1)
@@ -221,76 +254,33 @@ def process_single_slide(args):
         else: 
             inp_json[item] = [r_json[item]]
     pf = pd.DataFrame.from_dict(inp_json)
-   
-    # Check if required columns are missing
-    missing_columns = check_required_columns(pf,required_columns)
-    if len(missing_columns)!=0:
-        ierr = error_info["missing_columns"];
-        ierr["missing_columns"] = missing_columns 
-        all_log["error"].append(ierr)
-        return_msg["status"] = json.dumps(all_log)
-        print(return_msg)
-        sys.exit(2)
-
-    # Check if column values are shorter than max length allowed
-    problem_rows = check_column_lengths(pf,required_columns,column_lengths)
-    if len(problem_rows)!=0:
-        ierr = error_info["column_lengths"]
-        ierr["column_lengths"] = problem_rows
-        all_log["error"].append(ierr)
-   
-    # Check rows missing values
-    rows_missing_values = check_rows_missing_values(pf,required_columns)
-    if len(rows_missing_values)!=0:
-        ierr = error_info["missing_values"];
-        ierr["missing_values"] = rows_missing_values 
-        all_log["error"].append(ierr)
-
-    # Check for duplicate rows
-    duplicate_rows = check_duplicate_rows(pf)
-    if len(duplicate_rows)!=0: 
-        ierr = error_info["duplicate_rows"];
-        ierr["duplicate_rows"] = duplicate_rows
-        all_log["warning"].append(ierr)
-
-    # Store row wise status
     pf["manifest_error_code"] = str(error_info["no_error"]["code"])
     pf["manifest_error_msg"]  = error_info["no_error"]["msg"]
     pf["file_uuid"]  = ""
     pf["file_ext"]   = ""
-    for idx in rows_missing_values:
-        pf.at[idx-1,"manifest_error_code"] = str(error_info["missing_values"]["code"])
-        pf.at[idx-1,"manifest_error_msg"]  = error_info["missing_values"]["msg"]
-    for idx in range(len(problem_rows)):
-        idx = problem_rows[idx]["row_id"];
-        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"manifest_error_code"] = str(error_info["column_lengths"]["code"]) 
-            pf.at[idx-1,"manifest_error_msg"]  = error_info["column_lengths"]["msg"]
-        else:
-            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["collumn_lengths"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["collumn_lengths"]["msg"]
-    for idx in duplicate_rows: 
-        if str(pf["manifest_error_code"][idx-1])==str(error_info["no_error"]["code"]): 
-            pf.at[idx-1,"manifest_error_code"] = str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = error_info["duplicate_rows"]["msg"]
-        else: 
-            pf.at[idx-1,"manifest_error_code"] = str(pf["manifest_error_code"][idx-1])+";"+str(error_info["duplicate_rows"]["code"])
-            pf.at[idx-1,"manifest_error_msg"]  = pf["manifest_error_msg"][idx-1]+";"+error_info["duplicate_rows"]["msg"]
-    for idx, row in pf.iterrows():
-        filename, file_extension = path.splitext(row["path"])
-        if md5_check=='y':
-            pf.at[idx,"file_uuid"] = compute_md5(inp_folder+"/"+row["path"])
-        else:
-            pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
-        pf.at[idx,"file_ext"] = str(file_extension)
+
+    fatal_error = check_errors(pf,required_columns,column_lengths,inp_folder,all_log)
+    if fatal_error==1: 
+        return_msg["status"] = json.dumps(all_log)
+        print(return_msg)
+        sys.exit(2)
 
     one_row = pd.DataFrame(columns=pf.columns)
     for idx, row in pf.iterrows():
-        one_row.loc[0] = pf.loc[idx] 
-        file_uuid = pf.at[idx,"file_uuid"] 
-        out_metadata_fd = open(inp_folder+"/"+file_uuid+"_"+out_manifest_fname,mode="w")
-        one_row.to_csv(out_metadata_fd,index=False)
-        out_metadata_fd.close()
+        error_codes = row["manifest_error_code"].split(";")
+        if str(error_info["missing_files"]["code"]) not in error_codes:
+            filename, file_extension = path.splitext(row["path"])
+            if md5_check=='y':
+                pf.at[idx,"file_uuid"] = compute_md5(inp_folder+"/"+row["path"])
+            else:
+                pf.at[idx,"file_uuid"] = str(uuid.uuid1()) 
+            pf.at[idx,"file_ext"] = str(file_extension)
+            # output to a csv file
+            one_row.loc[0] = pf.loc[idx] 
+            file_uuid = pf.at[idx,"file_uuid"] 
+            out_metadata_fd = open(inp_folder+"/"+file_uuid+"_"+out_manifest_fname,mode="w")
+            one_row.to_csv(out_metadata_fd,index=False)
+            out_metadata_fd.close()
     
     return_msg["status"] = json.dumps(all_log)
     return_msg["output"] = json.dumps(pf.to_dict(orient='records'))
