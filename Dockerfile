@@ -1,12 +1,11 @@
-FROM python:3.7.4-slim
+FROM python:3.7.5-slim
 MAINTAINER SBU-BMI
 
 RUN pip install numpy pandas
 
 WORKDIR /root
 COPY . /root/.
-RUN  chmod 0755 run_metadata_check
-RUN  chmod 0755 run_metadata_combine
+RUN  chmod 0755 slide_check_manifest slide_combine_manifest 
 ENV PATH=.:$PATH
 
-CMD ["run_metadata_check"]
+CMD ["slide_check_manifest"]
